@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>התאמות תלמידים</title>
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--text:#1f2933;--muted:#6b7280;--accent:#2563eb;--soft:#eef2ff;--border:#e5e7eb;--err:#b91c1c}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text)}
+  [hidden]{display:none!important}
+  input,select,button{font:inherit}
+
+  header{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--border);padding:14px 16px;z-index:2}
+  .top{display:flex;justify-content:space-between;align-items:center;gap:8px;max-width:760px;margin:0 auto}
+  .head-inner{max-width:760px;margin:0 auto}
+  h1{font-size:20px;margin:0}
+  .sub{color:var(--muted);font-size:14px;margin:4px 0 10px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap}
+  input,select{padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--text)}
+  .controls input{flex:1 1 220px}
+  .controls select{flex:0 1 170px}
+  .link{background:none;border:0;color:var(--accent);cursor:pointer;padding:4px}
+  input,select{font-size:16px}   /* 16px stops iPhone from zooming in on tap */
+
+  @media (max-width:560px){
+    header{padding:12px}
+    h1{font-size:18px}
+    .controls input{flex:1 1 100%}          /* search gets its own full row */
+    .controls select{flex:1 1 0;min-width:0} /* the two filters share the next row */
+    main{padding:10px}
+    .row-btn{padding:14px 12px}
+    .panel{padding:4px 10px 12px}
+  }
+
+  main{padding:16px;max-width:760px;margin:0 auto}
+  .list{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+
+  /* Student row */
+  .row{border-bottom:1px solid var(--border)}
+  .row:last-child{border-bottom:0}
+  .row-btn{width:100%;display:flex;align-items:center;gap:12px;padding:14px 16px;background:none;border:0;cursor:pointer;text-align:right;color:inherit}
+  .row-btn:hover{background:#fafbfc}
+  .who{flex:1;min-width:0}
+  .name{font-weight:600;font-size:16px}
+  .meta{color:var(--muted);font-size:13px;margin-top:2px}
+  .cls{background:var(--soft);color:#3730a3;border-radius:999px;padding:3px 10px;font-size:13px;white-space:nowrap}
+  .chev{color:var(--muted);transition:transform .15s;font-size:14px}
+  .row.open .chev{transform:rotate(-90deg)}
+  .row.open .row-btn{background:#fafbfc}
+
+  /* Accommodations panel */
+  .panel{padding:4px 16px 16px;background:#fafbfc}
+  .acc{background:#fff;border:1px solid var(--border);border-right:4px solid var(--accent);border-radius:10px;padding:10px 12px;margin-top:8px}
+  .acc-name{font-weight:600}
+  .acc-subs{color:var(--muted);font-size:13px;margin-top:3px}
+  .acc-explain{font-size:14px;margin-top:6px;line-height:1.5}
+
+  .msg{text-align:center;color:var(--muted);padding:40px 0}
+  .tip{color:var(--muted);font-size:12px;margin-top:8px}
+
+  /* Login */
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px}
+  .auth{max-width:380px;margin:60px auto;padding:24px}
+  .auth h1{margin-bottom:12px}
+  .auth input{width:100%;margin-bottom:10px}
+  .btn{width:100%;background:var(--accent);color:#fff;border:0;border-radius:10px;padding:11px 16px;cursor:pointer}
+  .btn:disabled{opacity:.6;cursor:default}
+  .err{color:var(--err);font-size:14px;min-height:20px;margin-top:8px}
+  .hint{color:var(--muted);font-size:14px;margin:0 0 14px}
+</style>
+</head>
+<body>
+
+<div id="loading" class="msg">טוען…</div>
+
+<!-- Login -->
+<div id="login" class="card auth" hidden>
+  <h1>התאמות תלמידים</h1>
+  <div id="step1">
+    <p class="hint">הזינו אימייל ונשלח אליכם קוד כניסה.</p>
+    <input id="email" type="email" placeholder="אימייל" autocomplete="email">
+    <input id="fullname" type="text" placeholder="שם מלא (לבקשה ראשונה)">
+    <button class="btn" id="sendBtn">שלחו לי קוד</button>
+  </div>
+  <div id="step2" hidden>
+    <p class="hint">קוד נשלח ל-<b id="sentTo"></b>. בדקו גם בספאם.</p>
+    <input id="code" type="text" inputmode="numeric" maxlength="6" placeholder="קוד בן 6 ספרות" autocomplete="one-time-code">
+    <button class="btn" id="verifyBtn">כניסה</button>
+    <button class="link" id="backBtn">החלפת אימייל</button>
+  </div>
+  <div class="err" id="loginErr"></div>
+</div>
+
+<!-- Waiting for approval -->
+<div id="pending" class="card auth" hidden>
+  <h1>ממתין לאישור</h1>
+  <p class="hint" id="pendingMsg"></p>
+  <button class="btn" id="recheckBtn">בדיקה שוב</button>
+  <button class="link logout">יציאה</button>
+</div>
+
+<!-- The list -->
+<div id="app" hidden>
+  <header>
+    <div class="top">
+      <h1>התאמות תלמידים</h1>
+      <button class="link logout">יציאה</button>
+    </div>
+    <div class="head-inner">
+      <div class="sub" id="who"></div>
+      <div class="controls">
+        <input id="q" type="search" placeholder="חיפוש לפי שם התלמיד/ה">
+        <select id="cls"><option value="">כל הכיתות</option></select>
+        <select id="sub"><option value="">כל המקצועות</option></select>
+      </div>
+      <div class="tip">לחצו על תלמיד/ה כדי לראות את ההתאמות. בחירת מקצוע מציגה רק את ההתאמות הרלוונטיות אליו.</div>
+    </div>
+  </header>
+  <main>
+    <div id="list" class="list"></div>
+    <div id="msg" class="msg"></div>
+  </main>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  /* ========= SETTINGS: paste your Apps Script /exec link here ========= */
+  const API_URL = 'https://script.google.com/macros/s/AKfycbxwRIhz7phWRB2V7qGLjmkRhnUH_l2b3ErfmywyqVuuPsSP7lhMRpN5rwla6-7iFnqYhA/exec';
+  /* ==================================================================== */
+
+  // Talks to Apps Script in the background. text/plain avoids a CORS preflight,
+  // and no Google cookies are sent, so the teacher's Google accounts never matter.
+  async function call(action, params = {}) {
+    if (!API_URL.startsWith('https://')) throw new Error('API_URL לא הוגדר');
+    let r;
+    try {
+      r = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action, ...params }),
+      });
+    } catch (e) {
+      throw new Error('אין חיבור לשרת. בדקו את החיבור לאינטרנט ונסו שוב.');
+    }
+    if (!r.ok) throw new Error('השרת לא זמין כרגע (' + r.status + ')');
+    return r.json();
+  }
+
+  // Small wrapper so a blocked localStorage never breaks the page
+  const ls = {
+    get(k){ try { return localStorage.getItem(k); } catch(e) { return null; } },
+    set(k,v){ try { localStorage.setItem(k, v); } catch(e) {} },
+    del(k){ try { localStorage.removeItem(k); } catch(e) {} },
+  };
+  const KEY = 'hatamot_session', SUB_KEY = 'hatamot_subject';
+  let SESSION = ls.get(KEY), DATA = null;
+  const OPEN = new Set();               // students currently expanded
+  const ALL = 'כל המקצועות';
+
+  function view(id) {
+    ['loading','login','pending','app'].forEach(v => $(v).hidden = v !== id);
+  }
+
+  async function load() {
+    view('loading');
+    try {
+      const d = SESSION ? await call('getData', { session: SESSION }) : { needLogin: true };
+      if (d.needLogin) { ls.del(KEY); SESSION = null; return view('login'); }
+      if (d.pending) {
+        $('pendingMsg').textContent = d.blocked
+          ? 'הגישה לכתובת זו נחסמה.'
+          : 'הבקשה עבור ' + d.email + ' נשלחה. אחרי האישור לחצו "בדיקה שוב".';
+        return view('pending');
+      }
+      init(d);
+      view('app');
+    } catch (e) {
+      $('loading').innerHTML = esc('שגיאה בטעינה: ' + e.message) +
+        '<br><br><button class="link" onclick="load()">נסו שוב</button>';
+    }
+  }
+
+  /* ---- Login ---- */
+  $('sendBtn').onclick = async () => {
+    const btn = $('sendBtn'); btn.disabled = true; $('loginErr').textContent = '';
+    try {
+      const r = await call('requestCode', { email: $('email').value });
+      if (r.error) return $('loginErr').textContent = r.error;
+      $('sentTo').textContent = $('email').value.trim();
+      $('step1').hidden = true; $('step2').hidden = false; $('code').focus();
+    } catch (e) { $('loginErr').textContent = 'שגיאה: ' + e.message; }
+    finally { btn.disabled = false; }
+  };
+  $('verifyBtn').onclick = async () => {
+    const btn = $('verifyBtn'); btn.disabled = true; $('loginErr').textContent = '';
+    try {
+      const r = await call('verifyCode',
+        { email: $('email').value, code: $('code').value, name: $('fullname').value });
+      if (r.error) return $('loginErr').textContent = r.error;
+      SESSION = r.session; ls.set(KEY, SESSION);
+      load();
+    } catch (e) { $('loginErr').textContent = 'שגיאה: ' + e.message; }
+    finally { btn.disabled = false; }
+  };
+  $('backBtn').onclick = () => {
+    $('step2').hidden = true; $('step1').hidden = false; $('code').value = ''; $('loginErr').textContent = '';
+  };
+  $('code').addEventListener('keydown', e => { if (e.key === 'Enter') $('verifyBtn').click(); });
+  $('email').addEventListener('keydown', e => { if (e.key === 'Enter') $('sendBtn').click(); });
+  $('recheckBtn').onclick = load;
+  document.querySelectorAll('.logout').forEach(b => b.onclick = async () => {
+    try { await call('logout', { session: SESSION }); } catch (e) {}
+    ls.del(KEY); SESSION = null; view('login');
+  });
+
+  /* ---- List ---- */
+  const fill = (sel, items) => {
+    sel.length = 1;
+    items.sort((a, b) => a.localeCompare(b, 'he')).forEach(v => sel.add(new Option(v, v)));
+  };
+
+  function init(d) {
+    DATA = d;
+    DATA.students.forEach((s, i) => s.id = i);
+    fill($('cls'), [...new Set(d.students.map(s => s.cls).filter(Boolean))]);
+    fill($('sub'), [...new Set(d.students.flatMap(s => s.acc.flatMap(a => a.subjects)))]
+      .filter(x => x !== ALL));
+    const saved = ls.get(SUB_KEY);
+    if (saved && [...$('sub').options].some(o => o.value === saved)) $('sub').value = saved;
+
+    $('q').oninput = render;
+    $('cls').onchange = render;
+    $('sub').onchange = () => { ls.set(SUB_KEY, $('sub').value); render(); };
+    render();
+  }
+
+  // Matches "ועד אבו" as well as "אבו ועד", and ignores ' and " differences
+  const norm = s => String(s).replace(/['"`׳״]/g, '').replace(/\s+/g, ' ').trim();
+  const nameMatch = (name, q) => norm(q).split(' ').every(w => norm(name).includes(w));
+
+  function render() {
+    const q = $('q').value.trim(), c = $('cls').value, sub = $('sub').value;
+    const list = DATA.students
+      .map(s => ({ ...s, acc: sub
+        ? s.acc.filter(a => a.subjects.includes(sub) || a.subjects.includes(ALL))
+        : s.acc }))
+      .filter(s => s.acc.length && (!c || s.cls === c) && (!q || nameMatch(s.name, q)));
+
+    $('who').textContent = 'שלום ' + DATA.name + ' · ' +
+      (list.length === DATA.students.length
+        ? DATA.students.length + ' תלמידים'
+        : 'מוצגים ' + list.length + ' מתוך ' + DATA.students.length + ' תלמידים');
+
+    $('list').hidden = !list.length;
+    $('list').innerHTML = list.map(s => {
+      const open = OPEN.has(s.id);
+      return `
+      <div class="row${open ? ' open' : ''}" data-id="${s.id}">
+        <button class="row-btn" aria-expanded="${open}">
+          <div class="who">
+            <div class="name">${esc(s.name)}</div>
+            <div class="meta">${s.acc.length} ${s.acc.length === 1 ? 'התאמה' : 'התאמות'}</div>
+          </div>
+          ${s.cls ? `<span class="cls">${esc(s.cls)}</span>` : ''}
+          <span class="chev">◀</span>
+        </button>
+        <div class="panel"${open ? '' : ' hidden'}>${s.acc.map(a => `
+          <div class="acc">
+            <div class="acc-name">${esc(a.name)}</div>
+            ${a.subjects.length ? `<div class="acc-subs">${esc(a.subjects.join(' · '))}</div>` : ''}
+            ${DATA.accMap[a.name] ? `<div class="acc-explain">${esc(DATA.accMap[a.name])}</div>` : ''}
+          </div>`).join('')}
+        </div>
+      </div>`;
+    }).join('');
+    $('msg').textContent = list.length ? '' : 'לא נמצאו תלמידים';
+  }
+
+  // Click a student to open / close their accommodations
+  $('list').addEventListener('click', e => {
+    const btn = e.target.closest('.row-btn');
+    if (!btn) return;
+    const row = btn.parentElement, id = +row.dataset.id;
+    const open = !OPEN.has(id);
+    open ? OPEN.add(id) : OPEN.delete(id);
+    row.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', open);
+    row.querySelector('.panel').hidden = !open;
+  });
+
+  load();
+</script>
+</body>
+</html>
